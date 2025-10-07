@@ -5,8 +5,8 @@
   "minimalVersionCode": 189,
   "minimalVersionName": "2.0.0",
   "android":{
-    "versionName": "2.2.2",
-    "minimalVersionName": "2.0.0"
+    "versionName": "2.6.2",
+    "minimalVersionName": "2.3.0"
   },
   "ios":{
     "versionName": "2.6.0",
