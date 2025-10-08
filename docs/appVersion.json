@@ -6,7 +6,7 @@
   "minimalVersionName": "2.0.0",
   "android":{
     "versionName": "2.6.2",
-    "minimalVersionName": "2.3.0"
+    "minimalVersionName": "2.6.0"
   },
   "ios":{
     "versionName": "2.6.0",
