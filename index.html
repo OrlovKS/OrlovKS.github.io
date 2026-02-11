@@ -3,212 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Push Demo - orlovks.github.io</title>
-    <!-- PWA манифест -->
+    <title>Native Web Push Demo</title>
     <link rel="manifest" href="/manifest.json">
     <style>
-        /* Стили остаются теми же */
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin: 10px 5px; }
-        .token-box { background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0; word-break: break-all; }
-        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-        .info { background: #d1ecf1; color: #0c5460; }
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        .status { padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+        .success { background: #e6fffa; color: #2c7a7b; border: 1px solid #81e6d9; }
+        .error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+        .info { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
+        .token-box { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; word-break: break-all; font-family: monospace; font-size: 12px; margin-top: 10px; }
+        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        button:disabled { background: #cbd5e0; }
     </style>
 </head>
 <body>
-    <h1>Web Push Demo</h1>
-    <p>Домен: <code>https://orlovks.github.io</code></p>
+    <h1>Web Push (Native)</h1>
+    <div id="status" class="status info">Инициализация...</div>
     
-    <div id="status" class="status info"></div>
-    
-    <h3>1. Разрешить уведомления</h3>
-    <button id="requestPermissionBtn">Разрешить уведомления</button>
-    
-    <h3>2. Получить токен устройства</h3>
-    <button id="getTokenBtn" disabled>Получить токен</button>
-    
-    <h3>3. Ваш токен:</h3>
-    <div id="tokenContainer" class="token-box" style="display: none;">
-        <div id="tokenText"></div>
-        <button id="copyTokenBtn">Скопировать токен</button>
+    <button id="btnSubscribe">Включить уведомления</button>
+
+    <div id="result" style="display:none;">
+        <h3>Ваш объект подписки (Subscription):</h3>
+        <p>Передайте этот JSON вашему провайдеру:</p>
+        <div id="subscriptionJson" class="token-box"></div>
+        <br>
+        <button id="btnCopy">Копировать JSON</button>
     </div>
-    
-    <h3>4. Инструкция по отправке пуша:</h3>
-    <ol>
-        <li>Скопируйте токен выше</li>
-        <li>Зайдите в <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
-        <li>Cloud Messaging → New campaign</li>
-        <li>Вставьте токен в "Send test message"</li>
-    </ol>
 
-    <script type="module">
-        import { initializeApp as firebaseInitializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-messaging.js";
+    <script>
+        const PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A';
+        const statusDiv = document.getElementById('status');
+        const btnSubscribe = document.getElementById('btnSubscribe');
+        const resultDiv = document.getElementById('result');
+        const jsonDiv = document.getElementById('subscriptionJson');
 
-        // Конфиг Firebase (оставляем ваш)
-        const firebaseConfig = {
-            apiKey: "AIzaSyDrffu7zN8rWmH7U9y3LizaDdq4uCql5YU",
-            authDomain: "test-push-project-a500f.firebasestorage.app",
-            projectId: "test-push-project-a500f",
-            storageBucket: "test-push-project-a500f.firebasestorage.app",
-            messagingSenderId: "158649760157",
-            appId: "1:158649760157:web:eaf6427ad06429c7bbd774",
-            measurementId: "G-XSSPSBXPFE"
-        };
-
-        const app = firebaseInitializeApp(firebaseConfig);
-        const messaging = getMessaging(app);
-        let swRegistration = null;
-
-        // Элементы DOM
-        const elements = {
-            status: document.getElementById('status'),
-            requestPermissionBtn: document.getElementById('requestPermissionBtn'),
-            getTokenBtn: document.getElementById('getTokenBtn'),
-            tokenContainer: document.getElementById('tokenContainer'),
-            tokenText: document.getElementById('tokenText'),
-            copyTokenBtn: document.getElementById('copyTokenBtn')
-        };
-
-        function showStatus(message, type = 'info') {
-            elements.status.textContent = message;
-            elements.status.className = `status ${type}`;
+        // Помощник для конвертации ключа
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
         }
 
-        // Регистрация Service Worker для GitHub Pages
-        async function registerServiceWorker() {
-            try {
-                if (!('serviceWorker' in navigator)) {
-                    throw new Error('Браузер не поддерживает Service Worker');
-                }
-                
-                // Путь для GitHub Pages (если в корне репозитория)
-                const swPath = '/firebase-messaging-sw.js';
-                console.log('Регистрируем Service Worker по пути:', swPath);
-                
-                swRegistration = await navigator.serviceWorker.register(swPath, {
-                    scope: '/', // Важно для GitHub Pages
-                    updateViaCache: 'none'
-                });
-                
-                console.log('Service Worker зарегистрирован для:', swRegistration.scope);
-                await navigator.serviceWorker.ready;
-                return swRegistration;
-                
-            } catch (error) {
-                console.error('Ошибка регистрации SW:', error);
-                showStatus(`Ошибка Service Worker: ${error.message}`, 'error');
-                throw error;
-            }
-        }
-
-        // Инициализация
-        async function initApp() {
-            // Проверка поддержки
-            if (!('Notification' in window)) {
-                showStatus('Браузер не поддерживает уведомления', 'error');
+        async function init() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                statusDiv.textContent = 'Web Push не поддерживается этим браузером';
+                statusDiv.className = 'status error';
+                btnSubscribe.disabled = true;
                 return;
             }
 
-            // Проверка разрешений
-            if (Notification.permission === 'granted') {
-                showStatus('Уведомления уже разрешены', 'success');
-                elements.getTokenBtn.disabled = false;
-            } else if (Notification.permission === 'denied') {
-                showStatus('Уведомления запрещены. Разрешите в настройках браузера', 'error');
-            }
-
-            // Регистрируем Service Worker
             try {
-                await registerServiceWorker();
-                showStatus('Service Worker зарегистрирован', 'success');
-            } catch (error) {
-                showStatus('Service Worker не зарегистрирован, но продолжим', 'warning');
+                const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                console.log('SW зарегистрирован:', reg.scope);
+                statusDiv.textContent = 'Готов к подписке';
+            } catch (e) {
+                statusDiv.textContent = 'Ошибка регистрации SW: ' + e.message;
+                statusDiv.className = 'status error';
             }
-            
-            showStatus('Готов к работе. Начните с шага 1', 'info');
         }
 
-        // Запрос разрешения
-        elements.requestPermissionBtn.addEventListener('click', async () => {
+        btnSubscribe.addEventListener('click', async () => {
             try {
                 const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    showStatus('Разрешение получено!', 'success');
-                    elements.getTokenBtn.disabled = false;
-                } else {
-                    showStatus(`Разрешение: ${permission}`, 'error');
+                if (permission !== 'granted') {
+                    throw new Error('Доступ к уведомлениям отклонен');
                 }
-            } catch (error) {
-                showStatus(`Ошибка: ${error.message}`, 'error');
+
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+                });
+
+                jsonDiv.textContent = JSON.stringify(subscription);
+                resultDiv.style.display = 'block';
+                statusDiv.textContent = 'Подписка успешно оформлена!';
+                statusDiv.className = 'status success';
+                
+                console.log('Subscription:', subscription);
+            } catch (err) {
+                statusDiv.textContent = 'Ошибка: ' + err.message;
+                statusDiv.className = 'status error';
+                console.error(err);
             }
         });
 
-        // Получение токена
-        elements.getTokenBtn.addEventListener('click', async () => {
-            try {
-                showStatus('Получаем токен...', 'info');
-                
-                if (Notification.permission !== 'granted') {
-                    showStatus('Сначала разрешите уведомления', 'error');
-                    return;
-                }
-                
-                // Убеждаемся, что SW зарегистрирован
-                if (!swRegistration) {
-                    swRegistration = await registerServiceWorker();
-                }
-                
-                // ВАЖНО: Получите настоящий VAPID ключ из Firebase Console!
-                const vapidKey = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A'.trim(); // Замените!
-                
-                const currentToken = await getToken(messaging, { 
-                    vapidKey,
-                    serviceWorkerRegistration: swRegistration
-                });
-
-                if (currentToken) {
-                    elements.tokenText.textContent = currentToken;
-                    elements.tokenContainer.style.display = 'block';
-                    showStatus('Токен получен!', 'success');
-                    
-                    // Сохраняем в localStorage
-                    localStorage.setItem('fcm_token', currentToken);
-                    console.log('Токен для домена orlovks.github.io:', currentToken);
-                }
-            } catch (error) {
-                showStatus(`Ошибка: ${error.message}`, 'error');
-                console.error('Ошибка получения токена:', error);
-            }
+        document.getElementById('btnCopy').addEventListener('click', () => {
+            navigator.clipboard.writeText(jsonDiv.textContent);
+            alert('Скопировано!');
         });
 
-        // Копирование токена
-        elements.copyTokenBtn.addEventListener('click', () => {
-            const token = elements.tokenText.textContent;
-            navigator.clipboard.writeText(token)
-                .then(() => showStatus('Токен скопирован!', 'success'))
-                .catch(() => {
-                    // Fallback
-                    const textArea = document.createElement('textarea');
-                    textArea.value = token;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    showStatus('Токен скопирован', 'success');
-                });
-        });
-
-        // Сообщения когда приложение открыто
-        onMessage(messaging, (payload) => {
-            console.log('Получено сообщение:', payload);
-            showStatus(`Новое уведомление: ${payload.notification?.title}`, 'success');
-        });
-
-        // Запуск
-        document.addEventListener('DOMContentLoaded', initApp);
+        init();
     </script>
 </body>
 </html>
