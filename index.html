@@ -71,6 +71,16 @@
                 }
 
                 const registration = await navigator.serviceWorker.ready;
+                // Находим существующую подписку
+                const existingSubscription = await registration.pushManager.getSubscription();
+                
+                if (existingSubscription) {
+                    // Если она есть — удаляем её
+                    await existingSubscription.unsubscribe();
+                    console.log('Старая подписка удалена');
+                }
+                
+                // Теперь можно подписываться заново с новым ключом
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
