@@ -76,8 +76,7 @@
                 
                 if (existingSubscription) {
                     // Если она есть — удаляем её
-                    await existingSubscription.unsubscribe();
-                    console.log('Старая подписка удалена');
+                    console.log('Есть старая подписка');
                 }
                 
                 // Теперь можно подписываться заново с новым ключом
