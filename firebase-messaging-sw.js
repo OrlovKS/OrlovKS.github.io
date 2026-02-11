@@ -2,7 +2,7 @@
 importScripts('https://www.gstatic.com/firebasejs/12.9.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.9.0/firebase-messaging-compat.js');
 
-// Инициализация Firebase
+// Инициализация Firebase (ВАШ КОНФИГ)
 firebase.initializeApp({
   apiKey: "AIzaSyDrffu7zN8rWmH7U9y3LizaDdq4uCql5YU",
   authDomain: "test-push-project-a500f.firebaseapp.com",
@@ -13,74 +13,84 @@ firebase.initializeApp({
   measurementId: "G-XSSPSBXPFE"
 });
 
-const baseUrl = self.location.origin;
 const messaging = firebase.messaging();
 
-// 1. Обработка фоновых сообщений Firebase
+// ========== ОБРАБОТКА PUSH УВЕДОМЛЕНИЙ ==========
+
+// 1. Firebase фоновые сообщения
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Фоновое сообщение от Firebase:', payload);
+  console.log('[SW] Фоновое сообщение Firebase:', payload);
   
   const notificationTitle = payload.notification?.title || 'Новое уведомление';
   const notificationOptions = {
     body: payload.notification?.body || 'У вас новое сообщение',
     icon: payload.notification?.icon || 'https://cdn-icons-png.flaticon.com/512/124/124010.png',
     badge: 'https://cdn-icons-png.flaticon.com/512/124/124010.png',
-    tag: 'firebase-push', // Группировка уведомлений
-    data: payload.data || { url: 'http://localhost:8080' }
+    image: payload.notification?.image,
+    tag: 'firebase-push',
+    timestamp: Date.now(),
+    data: payload.data || { url: self.location.origin },
+    actions: [
+      {
+        action: 'open',
+        title: '📂 Открыть'
+      },
+      {
+        action: 'dismiss',
+        title: '✕ Закрыть'
+      }
+    ],
+    requireInteraction: false,
+    silent: false,
+    vibrate: [200, 100, 200]
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// 2. Обработка стандартных push событий (для прямых запросов)
+// 2. Стандартный обработчик push событий
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push событие получено!', event);
+  console.log('[SW] Push событие получено');
   
-  let title = 'Новое уведомление';
-  let body = 'У вас новое сообщение';
-  let icon = 'https://cdn-icons-png.flaticon.com/512/124/124010.png';
-  let data = { url: 'http://localhost:8080' };
+  let payload = {};
   
   try {
     if (event.data) {
-      const payload = event.data.json();
+      payload = event.data.json();
       console.log('[SW] Данные push:', payload);
-      
-      title = payload.notification?.title || payload.title || title;
-      body = payload.notification?.body || payload.body || body;
-      icon = payload.notification?.icon || payload.icon || icon;
-      data = payload.data || data;
     }
   } catch (error) {
-    console.log('[SW] Ошибка парсинга данных:', error);
+    console.log('[SW] Ошибка парсинга JSON:', error);
     // Если данные в текстовом формате
-    if (event.data) {
-      body = event.data.text() || body;
-    }
+    payload = {
+      title: 'Уведомление',
+      body: event.data ? event.data.text() : 'Новое сообщение'
+    };
   }
   
-  console.log('[SW] Показываем уведомление:', { title, body });
-  
+  // Определяем параметры уведомления
+  const title = payload.notification?.title || payload.title || 'Новое уведомление';
   const options = {
-    body: body,
-    icon: icon,
+    body: payload.notification?.body || payload.body || 'У вас новое сообщение',
+    icon: payload.notification?.icon || payload.icon || 'https://cdn-icons-png.flaticon.com/512/124/124010.png',
     badge: 'https://cdn-icons-png.flaticon.com/512/124/124010.png',
-    tag: 'web-push', // Группировка
-    requireInteraction: false, // Автоматически не исчезает
-    data: data,
-    actions: [
+    image: payload.notification?.image || payload.image,
+    tag: payload.notification?.tag || payload.tag || 'web-push',
+    data: payload.data || payload,
+    actions: payload.actions || [
       {
         action: 'open',
         title: 'Открыть'
-      },
-      {
-        action: 'close',
-        title: 'Закрыть'
       }
-    ]
+    ],
+    requireInteraction: payload.requireInteraction || false,
+    silent: payload.silent || false,
+    vibrate: payload.vibrate || [200, 100, 200],
+    timestamp: Date.now()
   };
   
-  // ВАЖНО: event.waitUntil - уведомление покажется только с этим
+  console.log('[SW] Показываем уведомление:', title);
+  
   event.waitUntil(
     self.registration.showNotification(title, options)
   );
@@ -88,31 +98,32 @@ self.addEventListener('push', (event) => {
 
 // 3. Обработка кликов по уведомлению
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Клик по уведомлению:', event.notification);
+  console.log('[SW] Клик по уведомлению:', event.notification.tag);
   
   event.notification.close();
   
   const urlToOpen = event.notification.data?.url || 
-                    baseUrl;
+                    self.location.origin || 
+                    'https://orlovks.github.io';
   
-  // Обработка действий в уведомлении
+  // Обработка действий
   if (event.action === 'open') {
     event.waitUntil(
       clients.openWindow(urlToOpen)
     );
-  } else if (event.action === 'close') {
+  } else if (event.action === 'dismiss') {
     // Просто закрываем
-    console.log('[SW] Уведомление закрыто пользователем');
+    console.log('[SW] Уведомление закрыто');
   } else {
     // Обычный клик по уведомлению
     event.waitUntil(
-      clients.matchAll({ 
-        type: 'window', 
-        includeUncontrolled: true 
+      clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true
       }).then((clientList) => {
-        // Ищем открытую вкладку
+        // Ищем открытую вкладку нашего сайта
         for (const client of clientList) {
-          if (client.url.includes('localhost') && 'focus' in client) {
+          if (client.url.includes(self.location.hostname) && 'focus' in client) {
             return client.focus();
           }
         }
@@ -125,25 +136,60 @@ self.addEventListener('notificationclick', (event) => {
   }
 });
 
-// 4. Активация Service Worker
-self.addEventListener('activate', (event) => {
-  console.log('[SW] Активирован, берем контроль над клиентами');
-  event.waitUntil(self.clients.claim());
+// 4. Обработка закрытия уведомления
+self.addEventListener('notificationclose', (event) => {
+  console.log('[SW] Уведомление закрыто:', event.notification.tag);
 });
 
-// 5. Установка
+// 5. Service Worker установка
 self.addEventListener('install', (event) => {
-  console.log('[SW] Установлен, активируем сразу');
+  console.log('[SW] Установлен');
   self.skipWaiting(); // Немедленная активация
 });
 
-// 6. Для отладки - отвечаем на сообщения
+// 6. Service Worker активация
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Активирован');
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(), // Немедленный контроль над клиентами
+      // Очистка старых кешей
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName.startsWith('push-')) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
+  );
+});
+
+// 7. Обработка сообщений от основного скрипта
 self.addEventListener('message', (event) => {
-  console.log('[SW] Получено сообщение:', event.data);
-  if (event.data && event.data.type === 'TEST') {
+  console.log('[SW] Сообщение от клиента:', event.data);
+  
+  if (event.data && event.data.type === 'PING') {
+    event.ports[0].postMessage({ type: 'PONG', message: 'SW работает' });
+  }
+  
+  if (event.data && event.data.type === 'TEST_NOTIFICATION') {
     self.registration.showNotification('Тест из SW', {
-      body: 'Service Worker работает!',
+      body: 'Service Worker отвечает!',
       icon: 'https://cdn-icons-png.flaticon.com/512/124/124010.png'
     });
   }
 });
+
+// 8. Функция для проверки SW
+self.checkStatus = () => {
+  return {
+    status: 'active',
+    scope: self.registration ? self.registration.scope : 'unknown',
+    clients: 'ready'
+  };
+};
+
+console.log('[SW] Firebase Messaging Service Worker загружен и готов к работе');
