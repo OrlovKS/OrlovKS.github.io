@@ -1,31 +1,374 @@
-<html prefix="og: https://ogp.me/ns#">
+
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+							<style>
+								body {
+									background-color: white; /* Ensure the iframe has a white background */
+								}
+
+								
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .token-box {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px solid #ddd;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    
+
+							</style>
+                        </head>
+                        <body>
+                            <!DOCTYPE html>
+<html lang="ru">
 <head>
-    <meta property="og:title" content="Тут заголовок" />
-    <meta property="og:description" content="Тут описание" />
-    <meta property="og:url" content="https://bondana.app/s/1234sdf56" />
-    <meta property="og:site_name" content="Bondana.app">
-    <meta property="og:type" content="article" />
-
-    <meta property="og:image" itemprop="image" content="https://orlovks.github.io/test_img.png" />
-    <meta property="og:image:type" content="image/png">
-
-    <!-- Требуется чтобы телеграмм картинку делал сразу большой, а не маленьким квадратиком-->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://orlovks.github.io/test_img.png" />
-
-<!--    <link itemprop="thumbnailUrl" href="https://orlovks.github.io/test_img.png">-->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест Web Push с Firebase</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .token-box {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px solid #ddd;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
 </head>
-
 <body>
-<!--    <span itemprop="thumbnail" itemscope itemtype="http://schema.org/ImageObject">-->
-<!--        <link itemprop="url" href="https://orlovks.github.io/test_img.png">-->
-<!--    </span>-->
-    <div id="title">List Outlook by Bondana.app</div>
-    <div id="body">
-        <div id="desc">Test_4 meta for preview</div>
-        <img id="img" src="https://orlovks.github.io/test_img.png" style="width: 500px;">
+    <h1>Тестирование Web Push через Firebase</h1>
+    
+    <div id="status" class="status"></div>
+    
+    <h3>Шаг 1: Запросить разрешение на уведомления</h3>
+    <button id="requestPermissionBtn">Разрешить уведомления</button>
+    
+    <h3>Шаг 2: Получить FCM токен</h3>
+    <button id="getTokenBtn" disabled>Получить токен устройства</button>
+    
+    <h3>Шаг 3: Ваш токен (скопируйте его):</h3>
+    <div id="tokenContainer" class="token-box" style="display: none;">
+        <div id="tokenText"></div>
+        <button id="copyTokenBtn" style="margin-top: 10px;">Скопировать токен</button>
+    </div>
+    
+    <h3>Шаг 4: Отправить тестовый пуш</h3>
+    <p>Используйте этот токен в Firebase Console или REST API</p>
+    
+    <div style="margin-top: 30px; padding: 15px; background: #e9ecef; border-radius: 6px;">
+        <h4>Как отправить тестовый пуш:</h4>
+        <ol>
+            <li>Зайдите в <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
+            <li>Выберите ваш проект → Cloud Messaging → New Campaign</li>
+            <li>Выберите "Send test message" и вставьте ваш токен</li>
+        </ol>
     </div>
 
-</body>
+    <!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp as firebaseInitializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-messaging.js";
 
+    // Ваша конфигурация Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyDrffu7zN8rWmH7U9y3LizaDdq4uCql5YU",
+        authDomain: "test-push-project-a500f.firebaseapp.com",
+        projectId: "test-push-project-a500f",
+        storageBucket: "test-push-project-a500f.firebasestorage.app",
+        messagingSenderId: "158649760157",
+        appId: "1:158649760157:web:eaf6427ad06429c7bbd774",
+        measurementId: "G-XSSPSBXPFE"
+    };
+
+    // Инициализация Firebase
+    const app = firebaseInitializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+    
+    // Глобальные переменные
+    let swRegistration = null;
+
+    // Элементы DOM
+    const requestPermissionBtn = document.getElementById('requestPermissionBtn');
+    const getTokenBtn = document.getElementById('getTokenBtn');
+    const tokenContainer = document.getElementById('tokenContainer');
+    const tokenText = document.getElementById('tokenText');
+    const copyTokenBtn = document.getElementById('copyTokenBtn');
+    const statusDiv = document.getElementById('status');
+
+    // Показать статус
+    function showStatus(message, type = 'info') {
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+        statusDiv.style.display = 'block';
+        
+        if (type === 'success') {
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+    }
+
+    // Регистрация Service Worker
+    async function registerServiceWorker() {
+        try {
+            if (!('serviceWorker' in navigator)) {
+                throw new Error('Браузер не поддерживает Service Worker');
+            }
+            
+            // Регистрируем service worker
+            swRegistration = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+            console.log('Service Worker зарегистрирован:', swRegistration);
+            
+            // Ждем активации
+            await navigator.serviceWorker.ready;
+            console.log('Service Worker готов к работе');
+            
+            return swRegistration;
+        } catch (error) {
+            console.error('Ошибка регистрации Service Worker:', error);
+            showStatus(`Ошибка Service Worker: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    // Инициализация приложения
+    async function initApp() {
+        // Проверить поддержку уведомлений
+        if (!('Notification' in window)) {
+            showStatus('Ваш браузер не поддерживает уведомления', 'error');
+            requestPermissionBtn.disabled = true;
+            return;
+        }
+
+        // Проверить текущее разрешение
+        if (Notification.permission === 'granted') {
+            showStatus('Уведомления уже разрешены', 'success');
+            getTokenBtn.disabled = false;
+        } else if (Notification.permission === 'denied') {
+            showStatus('Уведомления запрещены. Разрешите в настройках браузера', 'error');
+            requestPermissionBtn.disabled = true;
+        }
+
+        // Регистрируем Service Worker (но не получаем токен)
+        try {
+            await registerServiceWorker();
+            showStatus('Service Worker зарегистрирован', 'success');
+        } catch (error) {
+            // Продолжаем работу, даже если SW не зарегистрирован
+            console.warn('Работаем без Service Worker');
+        }
+        
+        showStatus('Готов к работе. Начните с шага 1', 'info');
+    }
+
+    // Шаг 1: Запрос разрешения
+    requestPermissionBtn.addEventListener('click', async () => {
+        try {
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+                showStatus('Разрешение получено!', 'success');
+                getTokenBtn.disabled = false;
+            } else {
+                showStatus('Разрешение отклонено', 'error');
+                getTokenBtn.disabled = true;
+            }
+        } catch (error) {
+            showStatus(`Ошибка: ${error.message}`, 'error');
+        }
+    });
+
+    // Шаг 2: Получение токена
+    getTokenBtn.addEventListener('click', async () => {
+        try {
+            showStatus('Получаем токен устройства...', 'info');
+            
+            // 1. Проверяем разрешение
+            if (Notification.permission !== 'granted') {
+                showStatus('Сначала разрешите уведомления', 'error');
+                return;
+            }
+            
+            // 2. Убеждаемся, что Service Worker зарегистрирован
+            if (!swRegistration) {
+                showStatus('Регистрируем Service Worker...', 'info');
+                swRegistration = await registerServiceWorker();
+            }
+            
+            // 3. Получаем токен с указанием registration
+            const vapidKey = 'BBIXSmfbiOo8erRY0s0DQLT9Zbo7oZsxr-Jkwdif7gYQkXtuFGchl_Y962GYVrSm_l2Ni7nIju738ye0vojy7n4';
+            
+            const currentToken = await getToken(messaging, { 
+                vapidKey,
+                serviceWorkerRegistration: swRegistration
+            });
+
+            if (currentToken) {
+                tokenText.textContent = currentToken;
+                tokenContainer.style.display = 'block';
+                showStatus('Токен успешно получен!', 'success');
+                tokenContainer.scrollIntoView({ behavior: 'smooth' });
+                
+                // Сохраняем для удобства
+                localStorage.setItem('fcm_token', currentToken);
+                console.log('Токен сохранен:', currentToken);
+            } else {
+                showStatus('Не удалось получить токен', 'error');
+            }
+        } catch (error) {
+            showStatus(`Ошибка получения токена: ${error.message}`, 'error');
+            console.error('Ошибка получения токена:', error);
+            
+            // Дополнительная диагностика
+            if (error.code === 'messaging/failed-service-worker-registration') {
+                showStatus('Ошибка Service Worker. Проверьте файл firebase-messaging-sw.js', 'error');
+            }
+        }
+    });
+
+    // Шаг 3: Копирование токена
+    copyTokenBtn.addEventListener('click', () => {
+        const token = tokenText.textContent;
+        if (!token) return;
+        
+        navigator.clipboard.writeText(token)
+            .then(() => {
+                showStatus('Токен скопирован в буфер обмена!', 'success');
+            })
+            .catch(err => {
+                // Fallback для старых браузеров
+                const textArea = document.createElement('textarea');
+                textArea.value = token;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showStatus('Токен скопирован', 'success');
+            });
+    });
+
+    // Обработка входящих сообщений (когда приложение открыто)
+    onMessage(messaging, (payload) => {
+        console.log('Получено сообщение:', payload);
+        showStatus(`Получено уведомление: ${payload.notification?.title || 'Без заголовка'}`, 'success');
+        
+        // Показать уведомление
+        if (payload.notification) {
+            new Notification(payload.notification.title, {
+                body: payload.notification.body,
+                icon: payload.notification.icon || '/icon.png'
+            });
+        }
+    });
+
+    // Запуск инициализации
+    document.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
 </html>
+
+
+
+							<script>
+                            	
+							</script>
+                        </body>
+                        </html>
+                    
