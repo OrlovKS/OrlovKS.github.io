@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Native Web Push Demo</title>
+    <link rel="manifest" href="/manifest.json">
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
         .status { padding: 10px; border-radius: 4px; margin-bottom: 20px; }
@@ -11,133 +12,98 @@
         .error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
         .info { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
         .token-box { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; word-break: break-all; font-family: monospace; font-size: 12px; margin-top: 10px; }
-        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px; margin-right: 5px; }
+        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
         button:disabled { background: #cbd5e0; }
-        h3 { margin-top: 25px; margin-bottom: 5px; }
-        .field-label { font-weight: bold; margin-top: 15px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
     <h1>Web Push (Native)</h1>
     <div id="status" class="status info">Инициализация...</div>
-
+    
     <button id="btnSubscribe">Включить уведомления</button>
 
     <div id="result" style="display:none;">
-
-        <h3>ClientKey:</h3>
-        <div id="clientKeyBox" class="token-box"></div>
-        <button id="btnCopyClientKey">Копировать ClientKey</button>
-
-        <h3>Отдельные поля подписки:</h3>
-        <p class="field-label">Endpoint:</p>
-        <div id="fieldEndpoint" class="token-box"></div>
-        <p class="field-label">p256dh:</p>
-        <div id="fieldP256dh" class="token-box"></div>
-        <p class="field-label">auth:</p>
-        <div id="fieldAuth" class="token-box"></div>
-        <p class="field-label">expirationTime:</p>
-        <div id="fieldExpiration" class="token-box"></div>
-
-        <h3>RAW подписка (JSON):</h3>
+        <h3>Ваш объект подписки (Subscription):</h3>
+        <p>Передайте этот JSON вашему провайдеру:</p>
         <div id="subscriptionJson" class="token-box"></div>
-        <button id="btnCopyJson">Копировать JSON</button>
-
+        <br>
+        <button id="btnCopy">Копировать JSON</button>
     </div>
 
     <script>
-        var PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A';
-        var statusDiv = document.getElementById('status');
-        var btnSubscribe = document.getElementById('btnSubscribe');
-        var resultDiv = document.getElementById('result');
+        const PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A';
+        const statusDiv = document.getElementById('status');
+        const btnSubscribe = document.getElementById('btnSubscribe');
+        const resultDiv = document.getElementById('result');
+        const jsonDiv = document.getElementById('subscriptionJson');
 
+        // Помощник для конвертации ключа
         function urlBase64ToUint8Array(base64String) {
-            var padding = '='.repeat((4 - base64String.length % 4) % 4);
-            var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-            var rawData = window.atob(base64);
-            var outputArray = new Uint8Array(rawData.length);
-            for (var i = 0; i < rawData.length; i++) {
-                outputArray[i] = rawData.charCodeAt(i);
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+        }
+
+        async function init() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                statusDiv.textContent = 'Web Push не поддерживается этим браузером';
+                statusDiv.className = 'status error';
+                btnSubscribe.disabled = true;
+                return;
             }
-            return outputArray;
-        }
 
-        function showResult(subscription) {
-            var subJSON = subscription.toJSON();
-            var endpoint = subJSON.endpoint || '';
-            var p256dh = (subJSON.keys && subJSON.keys.p256dh) ? subJSON.keys.p256dh : '';
-            var auth = (subJSON.keys && subJSON.keys.auth) ? subJSON.keys.auth : '';
-            var expiration = subJSON.expirationTime || 'null';
-            var clientKey = endpoint + ':' + p256dh + ':' + auth;
-
-            document.getElementById('clientKeyBox').textContent = clientKey;
-            document.getElementById('fieldEndpoint').textContent = endpoint;
-            document.getElementById('fieldP256dh').textContent = p256dh;
-            document.getElementById('fieldAuth').textContent = auth;
-            document.getElementById('fieldExpiration').textContent = expiration;
-            document.getElementById('subscriptionJson').textContent = JSON.stringify(subJSON, null, 2);
-
-            resultDiv.style.display = 'block';
-            statusDiv.textContent = 'Подписка успешно оформлена!';
-            statusDiv.className = 'status success';
-        }
-
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-            statusDiv.textContent = 'Web Push не поддерживается этим браузером';
-            statusDiv.className = 'status error';
-            btnSubscribe.disabled = true;
-        } else {
-            navigator.serviceWorker.register('/firebase-messaging-sw.js').then(function(reg) {
+            try {
+                const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
                 console.log('SW зарегистрирован:', reg.scope);
                 statusDiv.textContent = 'Готов к подписке';
-            }).catch(function(e) {
-                console.error('Ошибка регистрации SW:', e);
+            } catch (e) {
                 statusDiv.textContent = 'Ошибка регистрации SW: ' + e.message;
                 statusDiv.className = 'status error';
-            });
+            }
         }
 
-        btnSubscribe.addEventListener('click', function() {
-            statusDiv.textContent = 'Запрашиваю разрешение...';
-            statusDiv.className = 'status info';
-
-            Notification.requestPermission().then(function(permission) {
-                console.log('Permission:', permission);
+        btnSubscribe.addEventListener('click', async () => {
+            try {
+                const permission = await Notification.requestPermission();
                 if (permission !== 'granted') {
-                    statusDiv.textContent = 'Доступ к уведомлениям отклонен';
-                    statusDiv.className = 'status error';
-                    return;
+                    throw new Error('Доступ к уведомлениям отклонен');
                 }
 
-                return navigator.serviceWorker.ready;
-            }).then(function(registration) {
-                if (!registration) return;
-                console.log('SW ready, подписываемся...');
-
-                return registration.pushManager.subscribe({
+                const registration = await navigator.serviceWorker.ready;
+                // Находим существующую подписку
+                const existingSubscription = await registration.pushManager.getSubscription();
+                
+                if (existingSubscription) {
+                    // Если она есть — удаляем её
+                    console.log('Есть старая подписка');
+                }
+                
+                // Теперь можно подписываться заново с новым ключом
+                const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
                 });
-            }).then(function(subscription) {
-                if (!subscription) return;
-                console.log('Subscription получен:', subscription);
-                showResult(subscription);
-            }).catch(function(err) {
-                console.error('Ошибка:', err);
+
+                jsonDiv.textContent = JSON.stringify(subscription);
+                resultDiv.style.display = 'block';
+                statusDiv.textContent = 'Подписка успешно оформлена!';
+                statusDiv.className = 'status success';
+                
+                console.log('Subscription:', subscription);
+            } catch (err) {
                 statusDiv.textContent = 'Ошибка: ' + err.message;
                 statusDiv.className = 'status error';
-            });
+                console.error(err);
+            }
         });
 
-        document.getElementById('btnCopyClientKey').addEventListener('click', function() {
-            navigator.clipboard.writeText(document.getElementById('clientKeyBox').textContent);
-            alert('ClientKey скопирован!');
+        document.getElementById('btnCopy').addEventListener('click', () => {
+            navigator.clipboard.writeText(jsonDiv.textContent);
+            alert('Скопировано!');
         });
 
-        document.getElementById('btnCopyJson').addEventListener('click', function() {
-            navigator.clipboard.writeText(document.getElementById('subscriptionJson').textContent);
-            alert('JSON скопирован!');
-        });
+        init();
     </script>
 </body>
 </html>
