@@ -11,73 +11,31 @@
         .success { background: #e6fffa; color: #2c7a7b; border: 1px solid #81e6d9; }
         .error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
         .info { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
-        .token-box { 
-            background: #f7fafc; 
-            border: 1px solid #edf2f7; 
-            padding: 15px; 
-            word-break: break-all; 
-            font-family: monospace; 
-            font-size: 12px; 
-            margin-top: 10px; 
-            overflow-x: auto; /* Добавлено для горизонтального скролла */
-            white-space: pre-wrap; /* Сохраняет переводы строк и пробелы внутри box */
-        }
-        pre {
-            background: #f7fafc; 
-            border: 1px solid #edf2f7; 
-            padding: 15px; 
-            word-break: break-all; 
-            font-family: monospace; 
-            font-size: 12px; 
-            margin-top: 10px; 
-            overflow-x: auto; /* Добавлено для горизонтального скролла */
-            white-space: pre-wrap;
-        }
-        button { 
-            background: #4299e1; 
-            color: white; 
-            border: none; 
-            padding: 10px 20px; 
-            border-radius: 5px; 
-            cursor: pointer; 
-            margin-right: 10px; /* Отступ между кнопками */
-            margin-bottom: 15px; /* Отступ после кнопок */
-        }
-        button:disabled { background: #cbd5e0; cursor: not-allowed; }
-        h3 { margin-top: 30px; }
+        .token-box { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; word-break: break-all; font-family: monospace; font-size: 12px; margin-top: 10px; }
+        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        button:disabled { background: #cbd5e0; }
     </style>
 </head>
 <body>
     <h1>Web Push (Native)</h1>
     <div id="status" class="status info">Инициализация...</div>
     
-    <button id="btnSubscribe">Включить/Обновить уведомления</button>
+    <button id="btnSubscribe">Включить уведомления</button>
 
     <div id="result" style="display:none;">
-        <h3>Ваш ClientKey:</h3>
-        <div id="clientKey" class="token-box"></div>
-        <button id="btnCopyClientKey">Копировать ClientKey</button>
-
-        <h3>RAW подписка (JSON):</h3>
+        <h3>Ваш объект подписки (Subscription):</h3>
         <p>Передайте этот JSON вашему провайдеру:</p>
         <div id="subscriptionJson" class="token-box"></div>
-        <button id="btnCopySubscriptionJson">Копировать JSON подписки</button>
-        
-        <h3>Детали подписки:</h3>
-        <div id="subscriptionDetails"></div>
+        <br>
+        <button id="btnCopy">Копировать JSON</button>
     </div>
 
     <script>
-        const PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A'; 
-        
+        const PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A';
         const statusDiv = document.getElementById('status');
         const btnSubscribe = document.getElementById('btnSubscribe');
         const resultDiv = document.getElementById('result');
-        const clientKeyDiv = document.getElementById('clientKey');
-        const subscriptionJsonDiv = document.getElementById('subscriptionJson');
-        const subscriptionDetailsDiv = document.getElementById('subscriptionDetails');
-        const btnCopyClientKey = document.getElementById('btnCopyClientKey');
-        const btnCopySubscriptionJson = document.getElementById('btnCopySubscriptionJson');
+        const jsonDiv = document.getElementById('subscriptionJson');
 
         // Помощник для конвертации ключа
         function urlBase64ToUint8Array(base64String) {
@@ -89,116 +47,62 @@
 
         async function init() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                statusDiv.textContent = 'Web Push не поддерживается этим браузером или отключен.';
+                statusDiv.textContent = 'Web Push не поддерживается этим браузером';
                 statusDiv.className = 'status error';
                 btnSubscribe.disabled = true;
                 return;
             }
 
             try {
-                // Если Service Worker уже зарегистрирован и активен, можно сразу разблокировать кнопку
-                const registration = await navigator.serviceWorker.ready;
-                console.log('[SW] Service Worker готов:', registration.scope);
-                statusDiv.textContent = 'Service Worker активен. Нажмите кнопку, чтобы управлять подпиской.';
-                statusDiv.className = 'status info';
-                btnSubscribe.disabled = false; // Разблокировать кнопку
+                const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                console.log('SW зарегистрирован:', reg.scope);
+                statusDiv.textContent = 'Готов к подписке';
             } catch (e) {
-                // Если SW еще не зарегистрирован или возникла ошибка при его подготовке
-                try {
-                    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                    console.log('[SW] Service Worker зарегистрирован:', reg.scope);
-                    statusDiv.textContent = 'Service Worker успешно зарегистрирован. Нажмите кнопку, чтобы подписаться.';
-                    statusDiv.className = 'status info';
-                    btnSubscribe.disabled = false; // Разблокировать кнопку после успешной регистрации
-                } catch (regError) {
-                    statusDiv.textContent = 'Ошибка регистрации Service Worker: ' + regError.message;
-                    statusDiv.className = 'status error';
-                    btnSubscribe.disabled = true;
-                    console.error('[SW] Ошибка регистрации SW:', regError);
-                }
+                statusDiv.textContent = 'Ошибка регистрации SW: ' + e.message;
+                statusDiv.className = 'status error';
             }
         }
 
         btnSubscribe.addEventListener('click', async () => {
-            statusDiv.textContent = 'Попытка подписки на уведомления...';
-            statusDiv.className = 'status info';
-            btnSubscribe.disabled = true; // Отключить кнопку на время выполнения запроса
-
             try {
-                // 1. Запрос разрешения на уведомления
-                const notificationPermission = await Notification.requestPermission();
-                if (notificationPermission !== 'granted') {
-                    throw new Error('Доступ к уведомлениям отклонен пользователем.');
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    throw new Error('Доступ к уведомлениям отклонен');
                 }
-                
+
                 const registration = await navigator.serviceWorker.ready;
-                let subscription = await registration.pushManager.getSubscription();
+                // Находим существующую подписку
+                const existingSubscription = await registration.pushManager.getSubscription();
                 
-                // 2. Если подписки нет, создаем новую
-                if (!subscription) {
-                    console.log('[SW] Создание новой подписки...');
-                    subscription = await registration.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
-                    });
-                    console.log('[SW] Новая подписка получена.');
-                } else {
-                    console.log('[SW] Существующая подписка найдена. Обновление отображения.');
+                if (existingSubscription) {
+                    // Если она есть — удаляем её
+                    console.log('Есть старая подписка');
                 }
+                
+                // Теперь можно подписываться заново с новым ключом
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+                });
 
-                if (!subscription) {
-                    throw new Error('Не удалось создать или получить подписку.');
-                }
-
-                console.log('[SW] Финальная подписка:', subscription);
-
-                // --- Формирование ClientKey ---
-                const subJSON = subscription.toJSON();
-                // Убедимся, что ключи существуют, прежде чем пытаться к ним обратиться
-                const p256dh = subJSON.keys && subJSON.keys.p256dh ? subJSON.keys.p256dh : 'N/A';
-                const auth = subJSON.keys && subJSON.keys.auth ? subJSON.keys.auth : 'N/A';
-
-                const clientKey = `${subJSON.endpoint}:${p256dh}:${auth}`;
-                clientKeyDiv.textContent = clientKey;
-
-                // --- RAW подписка (JSON) ---
-                subscriptionJsonDiv.textContent = JSON.stringify(subscription, null, 2); // С отступами для читаемости
-
-                // --- Детали подписки ---
-                let detailsHtml = `
-                    <p><strong>Endpoint:</strong> <pre>${subJSON.endpoint}</pre></p>
-                    <p><strong>Expiration Time:</strong> <pre>${subJSON.expirationTime ? new Date(subJSON.expirationTime).toLocaleString() : 'N/A'}</pre></p>
-                    <p><strong>P256dh (Public Key):</strong> <pre>${p256dh}</pre></p>
-                    <p><strong>Auth (Auth Secret):</strong> <pre>${auth}</pre></p>
-                `;
-                subscriptionDetailsDiv.innerHTML = detailsHtml;
-
+                jsonDiv.textContent = JSON.stringify(subscription);
                 resultDiv.style.display = 'block';
                 statusDiv.textContent = 'Подписка успешно оформлена!';
                 statusDiv.className = 'status success';
                 
+                console.log('Subscription:', subscription);
             } catch (err) {
-                statusDiv.textContent = 'Ошибка подписки: ' + err.message;
+                statusDiv.textContent = 'Ошибка: ' + err.message;
                 statusDiv.className = 'status error';
-                console.error('[SW] Ошибка подписки:', err);
-            } finally {
-                btnSubscribe.disabled = false; // Включить кнопку обратно в любом случае
+                console.error(err);
             }
         });
 
-        btnCopyClientKey.addEventListener('click', () => {
-            navigator.clipboard.writeText(clientKeyDiv.textContent)
-                .then(() => alert('ClientKey скопирован!'))
-                .catch(err => console.error('Ошибка копирования ClientKey:', err));
+        document.getElementById('btnCopy').addEventListener('click', () => {
+            navigator.clipboard.writeText(jsonDiv.textContent);
+            alert('Скопировано!');
         });
 
-        btnCopySubscriptionJson.addEventListener('click', () => {
-            navigator.clipboard.writeText(subscriptionJsonDiv.textContent)
-                .then(() => alert('JSON подписки скопирован!'))
-                .catch(err => console.error('Ошибка копирования JSON подписки:', err));
-        });
-
-        // Запускаем инициализацию при загрузке страницы
         init();
     </script>
 </body>
