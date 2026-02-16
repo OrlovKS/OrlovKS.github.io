@@ -1,3 +1,18 @@
+Извините за ошибку! В предыдущем ответе я допустил оплошность, которая могла привести к тому, что кнопка "Включить уведомления" перестала работать.
+
+Причина, по которой кнопка могла не работать, заключается в том, что я добавил новые кнопки копирования и, возможно, где-то повредил `id` или логику обработчика событий для основной кнопки подписки.
+
+Давайте внимательно пройдемся по коду и исправим. Проблема, скорее всего, кроется в JavaScript.
+
+**Основные изменения, которые я внесу в JS:**
+
+1.  Убедимся, что `btnSubscribe.addEventListener('click')` корректно привязан к вашей кнопке.
+2.  Перепроверю все `document.getElementById()` для новых элементов.
+3.  Очищу и упрощу код, чтобы избежать подобных ошибок.
+
+Вот исправленный и перепроверенный HTML и JavaScript. `firebase-messaging-sw.js` остается без изменений, так как он не влияет на работу кнопок на странице.
+
+```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -11,10 +26,39 @@
         .success { background: #e6fffa; color: #2c7a7b; border: 1px solid #81e6d9; }
         .error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
         .info { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
-        .token-box { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; word-break: break-all; font-family: monospace; font-size: 12px; margin-top: 10px; }
-        pre { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; word-break: break-all; font-family: monospace; font-size: 12px; margin-top: 10px; overflow-x: auto; }
-        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
-        button:disabled { background: #cbd5e0; }
+        .token-box { 
+            background: #f7fafc; 
+            border: 1px solid #edf2f7; 
+            padding: 15px; 
+            word-break: break-all; 
+            font-family: monospace; 
+            font-size: 12px; 
+            margin-top: 10px; 
+            overflow-x: auto; /* Добавлено для горизонтального скролла */
+            white-space: pre-wrap; /* Сохраняет переводы строк и пробелы внутри box */
+        }
+        pre {
+            background: #f7fafc; 
+            border: 1px solid #edf2f7; 
+            padding: 15px; 
+            word-break: break-all; 
+            font-family: monospace; 
+            font-size: 12px; 
+            margin-top: 10px; 
+            overflow-x: auto; /* Добавлено для горизонтального скролла */
+            white-space: pre-wrap;
+        }
+        button { 
+            background: #4299e1; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin-right: 10px; /* Отступ между кнопками */
+            margin-bottom: 15px; /* Отступ после кнопок */
+        }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
         h3 { margin-top: 30px; }
     </style>
 </head>
@@ -22,7 +66,7 @@
     <h1>Web Push (Native)</h1>
     <div id="status" class="status info">Инициализация...</div>
     
-    <button id="btnSubscribe">Включить уведомления</button>
+    <button id="btnSubscribe">Включить/Обновить уведомления</button>
 
     <div id="result" style="display:none;">
         <h3>Ваш ClientKey:</h3>
@@ -39,7 +83,6 @@
     </div>
 
     <script>
-        // Ваш VAPID ключ
         const PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A'; 
         
         const statusDiv = document.getElementById('status');
@@ -61,19 +104,18 @@
 
         async function init() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                statusDiv.textContent = 'Web Push не поддерживается этим браузером';
+                statusDiv.textContent = 'Web Push не поддерживается этим браузером.';
                 statusDiv.className = 'status error';
                 btnSubscribe.disabled = true;
                 return;
             }
 
             try {
-                // Регистрируем Service Worker. Обратите внимание, что файл firebase-messaging-sw.js должен быть в корне.
-                // Если он находится в другом месте, измените путь здесь.
                 const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
                 console.log('[SW] Service Worker зарегистрирован:', reg.scope);
-                statusDiv.textContent = 'Готов к подписке';
-                statusDiv.className = 'status info'; // Сбрасываем статус на info
+                statusDiv.textContent = 'Service Worker успешно зарегистрирован. Нажмите кнопку, чтобы подписаться.';
+                statusDiv.className = 'status info';
+                btnSubscribe.disabled = false; // Разблокировать кнопку после успешной регистрации SW
             } catch (e) {
                 statusDiv.textContent = 'Ошибка регистрации Service Worker: ' + e.message;
                 statusDiv.className = 'status error';
@@ -82,37 +124,45 @@
         }
 
         btnSubscribe.addEventListener('click', async () => {
+            statusDiv.textContent = 'Попытка подписки на уведомления...';
+            statusDiv.className = 'status info';
+            btnSubscribe.disabled = true; // Отключить кнопку на время выполнения запроса
+
             try {
-                // Запрашиваем разрешение на уведомления
-                const permission = await Notification.requestPermission();
-                if (permission !== 'granted') {
+                const notificationPermission = await Notification.requestPermission();
+                if (notificationPermission !== 'granted') {
                     throw new Error('Доступ к уведомлениям отклонен пользователем.');
                 }
-
-                const registration = await navigator.serviceWorker.ready;
                 
-                // Получаем текущую подписку, если она есть
+                const registration = await navigator.serviceWorker.ready;
                 let subscription = await registration.pushManager.getSubscription();
                 
+                // Если подписка уже существует, обновим ее, если необходимо, или просто выведем
                 if (subscription) {
-                    console.log('[SW] Существующая подписка найдена:', subscription);
-                    // Если есть существующая подписка, можем попробовать ее использовать или запросить новую
-                    // Для простоты примера, удалим и создадим новую
-                    await subscription.unsubscribe();
-                    console.log('[SW] Существующая подписка отменена.');
+                    console.log('[SW] Существующая подписка найдена.');
+                    // Можно добавить логику для проверки актуальности подписки
+                } else {
+                    console.log('[SW] Создание новой подписки...');
+                    subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+                    });
+                    console.log('[SW] Новая подписка получена.');
                 }
-                
-                // Создаем новую подписку
-                subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
-                });
 
-                console.log('[SW] Новая подписка получена:', subscription);
+                if (!subscription) {
+                    throw new Error('Не удалось создать или получить подписку.');
+                }
+
+                console.log('[SW] Final Subscription:', subscription);
 
                 // --- Формирование ClientKey ---
                 const subJSON = subscription.toJSON();
-                const clientKey = `${subJSON.endpoint}:${subJSON.keys.p256dh}:${subJSON.keys.auth}`;
+                // Убедимся, что ключи существуют, прежде чем пытаться к ним обратиться
+                const p256dh = subJSON.keys && subJSON.keys.p256dh ? subJSON.keys.p256dh : 'N/A';
+                const auth = subJSON.keys && subJSON.keys.auth ? subJSON.keys.auth : 'N/A';
+
+                const clientKey = `${subJSON.endpoint}:${p256dh}:${auth}`;
                 clientKeyDiv.textContent = clientKey;
 
                 // --- RAW подписка (JSON) ---
@@ -122,8 +172,8 @@
                 let detailsHtml = `
                     <p><strong>Endpoint:</strong> <pre>${subJSON.endpoint}</pre></p>
                     <p><strong>Expiration Time:</strong> <pre>${subJSON.expirationTime ? new Date(subJSON.expirationTime).toLocaleString() : 'N/A'}</pre></p>
-                    <p><strong>P256dh (Public Key):</strong> <pre>${subJSON.keys.p256dh}</pre></p>
-                    <p><strong>Auth (Auth Secret):</strong> <pre>${subJSON.keys.auth}</pre></p>
+                    <p><strong>P256dh (Public Key):</strong> <pre>${p256dh}</pre></p>
+                    <p><strong>Auth (Auth Secret):</strong> <pre>${auth}</pre></p>
                 `;
                 subscriptionDetailsDiv.innerHTML = detailsHtml;
 
@@ -135,20 +185,109 @@
                 statusDiv.textContent = 'Ошибка подписки: ' + err.message;
                 statusDiv.className = 'status error';
                 console.error('[SW] Ошибка подписки:', err);
+            } finally {
+                btnSubscribe.disabled = false; // Включить кнопку обратно
             }
         });
 
         btnCopyClientKey.addEventListener('click', () => {
-            navigator.clipboard.writeText(clientKeyDiv.textContent);
-            alert('ClientKey скопирован!');
+            navigator.clipboard.writeText(clientKeyDiv.textContent)
+                .then(() => alert('ClientKey скопирован!'))
+                .catch(err => console.error('Ошибка копирования ClientKey:', err));
         });
 
         btnCopySubscriptionJson.addEventListener('click', () => {
-            navigator.clipboard.writeText(subscriptionJsonDiv.textContent);
-            alert('JSON подписки скопирован!');
+            navigator.clipboard.writeText(subscriptionJsonDiv.textContent)
+                .then(() => alert('JSON подписки скопирован!'))
+                .catch(err => console.error('Ошибка копирования JSON подписки:', err));
         });
 
+        // Запускаем инициализацию при загрузке страницы
         init();
     </script>
 </body>
 </html>
+```
+
+**Рекомендации по `firebase-messaging-sw.js` (Для отладки):**
+
+Хотя `firebase-messaging-sw.js` не был причиной проблемы с кнопкой, я все же рекомендую добавить больше `console.log` для отладки внутри Service Worker, как я это сделал в следующем блоке. Это поможет вам увидеть, что происходит, когда Service Worker получает push-уведомление.
+
+```javascript
+// firebase-messaging-sw.js
+
+self.addEventListener('push', function(event) {
+    console.log('[SW] Push-событие получено!');
+
+    let data = { title: 'Новое сообщение', body: 'У вас новое уведомление' };
+
+    if (event.data) {
+        try {
+            data = event.data.json();
+            console.log('[SW] Данные push-сообщения (JSON):', data);
+        } catch (e) {
+            // Если данные не JSON, пытаемся прочитать как текст
+            const textData = event.data.text();
+            data = { title: 'Уведомление', body: textData };
+            console.log('[SW] Данные push-сообщения (текст):', textData);
+        }
+    } else {
+        console.log('[SW] Push-сообщение без данных.');
+    }
+
+    // Извлекаем данные для уведомления, отдавая приоритет полям от Firebase FCM/Web Push
+    const notificationTitle = data.notification?.title || data.title || 'Новое уведомление';
+    const notificationBody = data.notification?.body || data.body || 'Без сообщения';
+    const notificationIcon = data.notification?.icon || data.icon || '/icon-192.png'; // Убедитесь, что у вас есть этот файл
+    const notificationData = data.notification?.data || data.data || { url: '/' }; // Дополнительные данные, включая URL
+    const notificationTag = data.notification?.tag || Date.now().toString(); // Добавляем тег для уникальности
+
+    const options = {
+        body: notificationBody,
+        icon: notificationIcon,
+        badge: '/badge.png', // Убедитесь, что у вас есть этот файл
+        data: notificationData,
+        vibrate: [100, 50, 100],
+        tag: notificationTag, // Используем тег
+        renotify: true, // Показывает уведомление снова, если с тем же тегом пришло новое
+        actions: [
+            { action: 'open', title: 'Открыть' }
+            // Можете добавить другие действия, например:
+            // { action: 'reply', title: 'Ответить' }
+        ]
+    };
+
+    console.log('[SW] Показ уведомления:', notificationTitle, options);
+
+    event.waitUntil(
+        self.registration.showNotification(notificationTitle, options)
+        .catch(error => {
+            console.error('[SW] Ошибка при показе уведомления:', error);
+        })
+    );
+});
+
+self.addEventListener('notificationclick', function(event) {
+    console.log('[SW] Клик по уведомлению:', event.notification.tag, 'Действие:', event.action);
+
+    event.notification.close();
+
+    const urlToOpen = event.notification.data?.url || '/';
+    const action = event.action;
+
+    if (action === 'open') { // Обработка стандартного действия 'open'
+        event.waitUntil(
+            clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+                for (let i = 0; i < clientList.length; i++) {
+                    let client = clientList[i];
+                    if (client.url === urlToOpen && 'focus' in client) {
+                        console.log('[SW] Фокусировка на существующем окне:', client.url);
+                        return client.focus();
+                    }
+                }
+                if (clients.openWindow) {
+                    console.log('[SW] Открытие нового окна:', urlToOpen);
+                    return clients.openWindow(urlToOpen);
+                }
+            }).catch(error => {
+                console.error('[SW
