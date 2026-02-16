@@ -99,69 +99,65 @@
 
         btnSubscribe.addEventListener('click', async () => {
             console.log('[click] Кнопка нажата');
-
+        
             try {
                 const vapidKey = vapidInput.value.trim();
                 console.log('[click] VAPID ключ:', vapidKey);
-
+        
                 if (!vapidKey) {
                     throw new Error('Введите VAPID Public Key');
                 }
-
+        
                 console.log('[click] Запрос разрешения на уведомления...');
                 const permission = await Notification.requestPermission();
                 console.log('[click] Разрешение:', permission);
-
+        
                 if (permission !== 'granted') {
                     throw new Error('Доступ к уведомлениям отклонен');
                 }
-
+        
                 console.log('[click] Ожидание готовности SW...');
                 const registration = await navigator.serviceWorker.ready;
                 console.log('[click] SW готов ✓');
-
+        
                 console.log('[click] Проверка существующей подписки...');
-                const existingSubscription = await registration.pushManager.getSubscription();
-
-                if (existingSubscription) {
-                    console.log('[click] Найдена старая подписка, удаляю...');
-                    await existingSubscription.unsubscribe();
-                    console.log('[click] Старая подписка удалена ✓');
+                let subscription = await registration.pushManager.getSubscription();
+        
+                if (subscription) {
+                    console.log('[click] Найдена существующая подписка, используем её ✓');
                 } else {
-                    console.log('[click] Старой подписки нет');
+                    console.log('[click] Подписки нет, создаю новую...');
+                    const applicationServerKey = urlBase64ToUint8Array(vapidKey);
+                    console.log('[click] VAPID сконвертирован ✓ длина:', applicationServerKey.length);
+        
+                    subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: applicationServerKey
+                    });
+                    console.log('[click] Новая подписка создана ✓');
                 }
-
-                console.log('[click] Конвертация VAPID ключа...');
-                const applicationServerKey = urlBase64ToUint8Array(vapidKey);
-                console.log('[click] VAPID сконвертирован ✓ длина:', applicationServerKey.length);
-
-                console.log('[click] Создание подписки (pushManager.subscribe)...');
-                const subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: applicationServerKey
-                });
-                console.log('[click] Подписка получена ✓', subscription);
-
+        
+                console.log('[click] Подписка:', subscription);
+        
                 const sub = subscription.toJSON();
                 const p256dh = sub.keys ? sub.keys.p256dh : '';
                 const auth = sub.keys ? sub.keys.auth : '';
-
+        
                 console.log('[click] endpoint:', sub.endpoint);
                 console.log('[click] p256dh:', p256dh);
                 console.log('[click] auth:', auth);
-                console.log('[click] expirationTime:', sub.expirationTime);
-
+        
                 document.getElementById('clientKeyBox').textContent = sub.endpoint + ':' + p256dh + ':' + auth;
                 document.getElementById('fieldEndpoint').textContent = sub.endpoint;
                 document.getElementById('fieldP256dh').textContent = p256dh;
                 document.getElementById('fieldAuth').textContent = auth;
                 document.getElementById('fieldExpiration').textContent = sub.expirationTime || 'null';
-
+        
                 jsonDiv.textContent = JSON.stringify(sub, null, 2);
                 resultDiv.style.display = 'block';
                 statusDiv.textContent = 'Подписка успешно оформлена!';
                 statusDiv.className = 'status success';
-
+        
                 console.log('[click] Всё готово ✓');
             } catch (err) {
                 console.error('[click] ОШИБКА:', err);
