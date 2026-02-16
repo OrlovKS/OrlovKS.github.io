@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Native Web Push Demo</title>
-    <link rel="manifest" href="/manifest.json">
     <style>
         body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
         .status { padding: 10px; border-radius: 4px; margin-bottom: 20px; }
@@ -12,32 +11,52 @@
         .error { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
         .info { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
         .token-box { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; word-break: break-all; font-family: monospace; font-size: 12px; margin-top: 10px; }
-        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px; margin-right: 5px; }
         button:disabled { background: #cbd5e0; }
+        h3 { margin-top: 25px; margin-bottom: 5px; }
+        .field-label { font-weight: bold; margin-top: 15px; margin-bottom: 2px; }
+        .vapid-input { width: 100%; padding: 10px; font-family: monospace; font-size: 13px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box; margin-top: 5px; }
+        .vapid-section { background: #f7fafc; border: 1px solid #edf2f7; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <h1>Web Push (Native)</h1>
     <div id="status" class="status info">Инициализация...</div>
-    
+
+    <div class="vapid-section">
+        <label class="field-label" for="vapidInput">VAPID Public Key:</label>
+        <input type="text" id="vapidInput" class="vapid-input" value="BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A">
+    </div>
+
     <button id="btnSubscribe">Включить уведомления</button>
 
     <div id="result" style="display:none;">
-        <h3>Ваш объект подписки (Subscription):</h3>
-        <p>Передайте этот JSON вашему провайдеру:</p>
+        <h3>ClientKey:</h3>
+        <div id="clientKeyBox" class="token-box"></div>
+        <button id="btnCopyClientKey">Копировать ClientKey</button>
+
+        <h3>Отдельные поля:</h3>
+        <p class="field-label">Endpoint:</p>
+        <div id="fieldEndpoint" class="token-box"></div>
+        <p class="field-label">p256dh:</p>
+        <div id="fieldP256dh" class="token-box"></div>
+        <p class="field-label">auth:</p>
+        <div id="fieldAuth" class="token-box"></div>
+        <p class="field-label">expirationTime:</p>
+        <div id="fieldExpiration" class="token-box"></div>
+
+        <h3>RAW подписка (JSON):</h3>
         <div id="subscriptionJson" class="token-box"></div>
-        <br>
         <button id="btnCopy">Копировать JSON</button>
     </div>
 
     <script>
-        const PUBLIC_VAPID_KEY = 'BKN9CI44QyK-p8JtXfYX-rOacfxyKzJ-Sd6pYQGK2nD8QyK035XKt6R-eJ_zIc9YBValX3QQZoxemAkxeVnrO_A';
         const statusDiv = document.getElementById('status');
         const btnSubscribe = document.getElementById('btnSubscribe');
         const resultDiv = document.getElementById('result');
         const jsonDiv = document.getElementById('subscriptionJson');
+        const vapidInput = document.getElementById('vapidInput');
 
-        // Помощник для конвертации ключа
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);
             const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -65,31 +84,44 @@
 
         btnSubscribe.addEventListener('click', async () => {
             try {
+                const vapidKey = vapidInput.value.trim();
+                if (!vapidKey) {
+                    throw new Error('Введите VAPID Public Key');
+                }
+
                 const permission = await Notification.requestPermission();
                 if (permission !== 'granted') {
                     throw new Error('Доступ к уведомлениям отклонен');
                 }
 
                 const registration = await navigator.serviceWorker.ready;
-                // Находим существующую подписку
                 const existingSubscription = await registration.pushManager.getSubscription();
-                
+
                 if (existingSubscription) {
-                    // Если она есть — удаляем её
-                    console.log('Есть старая подписка');
+                    await existingSubscription.unsubscribe();
+                    console.log('Старая подписка удалена');
                 }
-                
-                // Теперь можно подписываться заново с новым ключом
+
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey)
                 });
 
-                jsonDiv.textContent = JSON.stringify(subscription);
+                const sub = subscription.toJSON();
+                const p256dh = sub.keys ? sub.keys.p256dh : '';
+                const auth = sub.keys ? sub.keys.auth : '';
+
+                document.getElementById('clientKeyBox').textContent = sub.endpoint + ':' + p256dh + ':' + auth;
+                document.getElementById('fieldEndpoint').textContent = sub.endpoint;
+                document.getElementById('fieldP256dh').textContent = p256dh;
+                document.getElementById('fieldAuth').textContent = auth;
+                document.getElementById('fieldExpiration').textContent = sub.expirationTime || 'null';
+
+                jsonDiv.textContent = JSON.stringify(sub, null, 2);
                 resultDiv.style.display = 'block';
                 statusDiv.textContent = 'Подписка успешно оформлена!';
                 statusDiv.className = 'status success';
-                
+
                 console.log('Subscription:', subscription);
             } catch (err) {
                 statusDiv.textContent = 'Ошибка: ' + err.message;
@@ -101,6 +133,11 @@
         document.getElementById('btnCopy').addEventListener('click', () => {
             navigator.clipboard.writeText(jsonDiv.textContent);
             alert('Скопировано!');
+        });
+
+        document.getElementById('btnCopyClientKey').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('clientKeyBox').textContent);
+            alert('ClientKey скопирован!');
         });
 
         init();
