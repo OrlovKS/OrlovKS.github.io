@@ -1,19 +1,22 @@
 // firebase-messaging-sw.js
 
 self.addEventListener('push', function(event) {
-    console.log('[SW] Push получен');
+    console.log('[SW] Push-событие получено!');
 
     let data = { title: 'Новое сообщение', body: 'У вас новое уведомление' };
 
     if (event.data) {
         try {
             data = event.data.json();
-            console.log('[SW] Push-сообщение JSON:', data);
+            console.log('[SW] Данные push-сообщения (JSON):', data);
         } catch (e) {
             // Если данные не JSON, пытаемся прочитать как текст
-            data = { title: 'Уведомление', body: event.data.text() };
-            console.log('[SW] Push-сообщение (текст):', data.body);
+            const textData = event.data.text();
+            data = { title: 'Уведомление', body: textData };
+            console.log('[SW] Данные push-сообщения (текст):', textData);
         }
+    } else {
+        console.log('[SW] Push-сообщение без данных.');
     }
 
     // Извлекаем данные для уведомления, отдавая приоритет полям от Firebase FCM/Web Push
@@ -21,6 +24,7 @@ self.addEventListener('push', function(event) {
     const notificationBody = data.notification?.body || data.body || 'Без сообщения';
     const notificationIcon = data.notification?.icon || data.icon || '/icon-192.png'; // Убедитесь, что у вас есть этот файл
     const notificationData = data.notification?.data || data.data || { url: '/' }; // Дополнительные данные, включая URL
+    const notificationTag = data.notification?.tag || Date.now().toString(); // Добавляем тег для уникальности
 
     const options = {
         body: notificationBody,
@@ -28,6 +32,8 @@ self.addEventListener('push', function(event) {
         badge: '/badge.png', // Убедитесь, что у вас есть этот файл
         data: notificationData,
         vibrate: [100, 50, 100],
+        tag: notificationTag, // Используем тег
+        renotify: true, // Показывает уведомление снова, если с тем же тегом пришло новое
         actions: [
             { action: 'open', title: 'Открыть' }
             // Можете добавить другие действия, например:
@@ -35,37 +41,44 @@ self.addEventListener('push', function(event) {
         ]
     };
 
+    console.log('[SW] Показ уведомления:', notificationTitle, options);
+
     event.waitUntil(
         self.registration.showNotification(notificationTitle, options)
+        .catch(error => {
+            console.error('[SW] Ошибка при показе уведомления:', error);
+        })
     );
 });
 
 self.addEventListener('notificationclick', function(event) {
-    console.log('[SW] Клик по уведомлению:', event.notification.tag);
+    console.log('[SW] Клик по уведомлению:', event.notification.tag, 'Действие:', event.action);
 
     event.notification.close();
 
-    // Получаем URL для открытия из данных уведомления
     const urlToOpen = event.notification.data?.url || '/';
-    const action = event.action; // Действие, которое было выполнено (например, 'open')
+    const action = event.action;
 
-    console.log(`[SW] Действие: ${action}, URL для открытия: ${urlToOpen}`);
-
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-            // Пытаемся найти уже открытое окно с этим URL и сфокусироваться на нем
-            for (let i = 0; i < clientList.length; i++) {
-                let client = clientList[i];
-                if (client.url === urlToOpen && 'focus' in client) {
-                    console.log('[SW] Фокусировка на существующем окне:', client.url);
-                    return client.focus();
+    if (action === 'open') { // Обработка стандартного действия 'open'
+        event.waitUntil(
+            clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+                for (let i = 0; i < clientList.length; i++) {
+                    let client = clientList[i];
+                    if (client.url === urlToOpen && 'focus' in client) {
+                        console.log('[SW] Фокусировка на существующем окне:', client.url);
+                        return client.focus();
+                    }
                 }
-            }
-            // Если окно не найдено, открываем новое
-            if (clients.openWindow) {
-                console.log('[SW] Открытие нового окна:', urlToOpen);
-                return clients.openWindow(urlToOpen);
-            }
-        })
-    );
+                if (clients.openWindow) {
+                    console.log('[SW] Открытие нового окна:', urlToOpen);
+                    return clients.openWindow(urlToOpen);
+                }
+            }).catch(error => {
+                console.error('[SW] Ошибка при обработке клика по уведомлению или открытии окна:', error);
+            })
+        );
+    } else {
+        // Здесь можно добавить обработку других действий уведомлений
+        console.log(`[SW] Неизвестное действие уведомления: ${action}`);
+    }
 });
