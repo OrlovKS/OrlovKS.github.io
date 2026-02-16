@@ -65,51 +65,91 @@
         }
 
         async function init() {
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                statusDiv.textContent = 'Web Push не поддерживается этим браузером';
+            console.log('[init] Проверка поддержки...');
+
+            if (!('serviceWorker' in navigator)) {
+                console.error('[init] serviceWorker НЕ поддерживается');
+                statusDiv.textContent = 'Service Worker не поддерживается';
                 statusDiv.className = 'status error';
                 btnSubscribe.disabled = true;
                 return;
             }
+            console.log('[init] serviceWorker поддерживается ✓');
+
+            if (!('PushManager' in window)) {
+                console.error('[init] PushManager НЕ поддерживается');
+                statusDiv.textContent = 'PushManager не поддерживается';
+                statusDiv.className = 'status error';
+                btnSubscribe.disabled = true;
+                return;
+            }
+            console.log('[init] PushManager поддерживается ✓');
 
             try {
+                console.log('[init] Регистрация SW...');
                 const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                console.log('SW зарегистрирован:', reg.scope);
+                console.log('[init] SW зарегистрирован ✓ scope:', reg.scope);
                 statusDiv.textContent = 'Готов к подписке';
             } catch (e) {
+                console.error('[init] Ошибка регистрации SW:', e);
                 statusDiv.textContent = 'Ошибка регистрации SW: ' + e.message;
                 statusDiv.className = 'status error';
             }
         }
 
         btnSubscribe.addEventListener('click', async () => {
+            console.log('[click] Кнопка нажата');
+
             try {
                 const vapidKey = vapidInput.value.trim();
+                console.log('[click] VAPID ключ:', vapidKey);
+
                 if (!vapidKey) {
                     throw new Error('Введите VAPID Public Key');
                 }
 
+                console.log('[click] Запрос разрешения на уведомления...');
                 const permission = await Notification.requestPermission();
+                console.log('[click] Разрешение:', permission);
+
                 if (permission !== 'granted') {
                     throw new Error('Доступ к уведомлениям отклонен');
                 }
 
+                console.log('[click] Ожидание готовности SW...');
                 const registration = await navigator.serviceWorker.ready;
+                console.log('[click] SW готов ✓');
+
+                console.log('[click] Проверка существующей подписки...');
                 const existingSubscription = await registration.pushManager.getSubscription();
 
                 if (existingSubscription) {
+                    console.log('[click] Найдена старая подписка, удаляю...');
                     await existingSubscription.unsubscribe();
-                    console.log('Старая подписка удалена');
+                    console.log('[click] Старая подписка удалена ✓');
+                } else {
+                    console.log('[click] Старой подписки нет');
                 }
 
+                console.log('[click] Конвертация VAPID ключа...');
+                const applicationServerKey = urlBase64ToUint8Array(vapidKey);
+                console.log('[click] VAPID сконвертирован ✓ длина:', applicationServerKey.length);
+
+                console.log('[click] Создание подписки (pushManager.subscribe)...');
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(vapidKey)
+                    applicationServerKey: applicationServerKey
                 });
+                console.log('[click] Подписка получена ✓', subscription);
 
                 const sub = subscription.toJSON();
                 const p256dh = sub.keys ? sub.keys.p256dh : '';
                 const auth = sub.keys ? sub.keys.auth : '';
+
+                console.log('[click] endpoint:', sub.endpoint);
+                console.log('[click] p256dh:', p256dh);
+                console.log('[click] auth:', auth);
+                console.log('[click] expirationTime:', sub.expirationTime);
 
                 document.getElementById('clientKeyBox').textContent = sub.endpoint + ':' + p256dh + ':' + auth;
                 document.getElementById('fieldEndpoint').textContent = sub.endpoint;
@@ -122,11 +162,11 @@
                 statusDiv.textContent = 'Подписка успешно оформлена!';
                 statusDiv.className = 'status success';
 
-                console.log('Subscription:', subscription);
+                console.log('[click] Всё готово ✓');
             } catch (err) {
+                console.error('[click] ОШИБКА:', err);
                 statusDiv.textContent = 'Ошибка: ' + err.message;
                 statusDiv.className = 'status error';
-                console.error(err);
             }
         });
 
