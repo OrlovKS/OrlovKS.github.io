@@ -147,7 +147,7 @@
                 console.log('[click] p256dh:', p256dh);
                 console.log('[click] auth:', auth);
         
-                document.getElementById('clientKeyBox').textContent = sub.endpoint + ':' + p256dh + ':' + auth;
+                document.getElementById('clientKeyBox').textContent = sub.endpoint + ';' + p256dh + ';' + auth;
                 document.getElementById('fieldEndpoint').textContent = sub.endpoint;
                 document.getElementById('fieldP256dh').textContent = p256dh;
                 document.getElementById('fieldAuth').textContent = auth;
